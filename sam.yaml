@@ -24,12 +24,16 @@ Resources:
       #   Variables:
       #     BUCKET: !Ref ImageBucket
       #     URL: !GetAtt ImageBucket.WebsiteURL
-      Policies:
-          Statement:
-            - Resource: "*"
-              Effect: Allow
-              Action:
-                - ec2:DescribeImages
+      Policies: AmazonEC2ReadOnlyAccess
+          # Statement:
+          #   - Resource: "*"
+          #     Effect: Allow
+          #     Action:
+          #       - ec2:DescribeImages
+          #   - Resource: "*"
+          #     Effect: Allow
+          #     Action:
+          #       - ec2:ec2:DescribeRegions
 
   QueryFunctionPermission:
     Type: AWS::Lambda::Permission

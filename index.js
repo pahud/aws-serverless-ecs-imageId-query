@@ -18,6 +18,7 @@ var archToAMINamePattern = {
     "ECS": "amzn-ami-*amazon-ecs-optimized"
 }; 
 
+var regionCache = []
 var imageInfoCache = {}
 
 var describeImagesParams = {
@@ -26,16 +27,39 @@ var describeImagesParams = {
     //Owners: [event.ResourceProperties.Architecture == "HVMG2" ? "679593333241" : "amazon"]
 };
 
+function describeRegions() {
+    return ec2.describeRegionsAsync()
+}
+
+function buildRegionCache() {
+    return new Promise((resolve, reject)=> {
+        if (regionCache.length == 0) {
+        describeRegions()
+        .then(data => { 
+            regionCache = data.Regions.map( x=> x.RegionName)
+            resolve()
+        })
+        .catch(e => { reject(e)} )
+        } else {
+            resolve()
+        }
+    })
+}
+
 function isBeta(imageName) {
     return imageName.toLowerCase().indexOf("beta") > -1 || imageName.toLowerCase().indexOf(".rc") > -1;
 }
 
-function getImageInfo() {
+function getImageInfo(region) {
     return new Promise((resolve, reject) => {
-        if (imageInfoCache[aws_region]) {
-            console.log(imageInfoCache[aws_region])
-            resolve(imageInfoCache[aws_region])
+        if (imageInfoCache[region]) {
+            console.log(imageInfoCache[region])
+            resolve(imageInfoCache[region])
         }
+ 
+        AWS.config.update({ region: region });
+        ec2 = Promise.promisifyAll(new AWS.EC2());            
+        
 
         ec2.describeImagesAsync(describeImagesParams)
             //.then(data => console.log(data))
@@ -44,12 +68,13 @@ function getImageInfo() {
                 images.sort(function(x, y) { return y.Name.localeCompare(x.Name); });
                 for (var j = 0; j < images.length; j++) {
                     if (isBeta(images[j].Name)) continue;
-                    imageInfoCache[aws_region] = images[j]
+                    imageInfoCache[region] = images[j]
                     console.log(images[j])
                     resolve(images[j])     
                     //return images[j]
                     break;
                 }
+                resolve({})
             })
 
 
@@ -58,8 +83,22 @@ function getImageInfo() {
 }
 
 exports.handler = (evt, ctx) => {
-    console.log(JSON.stringify(evt))
-    getImageInfo()
+    //console.log(JSON.stringify(evt))
+    buildRegionCache()
+        .then(data => {
+            if(evt.pathParameters.region && regionCache.indexOf(evt.pathParameters.region) > -1){
+                console.log('valid region:', evt.pathParameters.region)
+            } else {
+                console.log('invalid region:', evt.pathParameters.region)
+                return ctx.succeed({
+                    statusCode: '403',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: "invalid region"
+                })                
+                
+            }
+        })
+        .then(data => getImageInfo(evt.pathParameters.region) )
         .then( data => {
             return ctx.succeed({
                 statusCode: '200',
@@ -67,10 +106,18 @@ exports.handler = (evt, ctx) => {
                 body: JSON.stringify(data)
             }) 
         })
-}
+}       
+    
+    // getImageInfo()
+    //     .then( data => {
+    //         return ctx.succeed({
+    //             statusCode: '200',
+    //             headers: { 'Content-Type': 'application/json' },
+    //             body: JSON.stringify(data)
+    //         }) 
+    //     })
 
 // getImageInfo()
 //     .then(data => console.log(data))
 
-
-  
+// buildRegionCache()
