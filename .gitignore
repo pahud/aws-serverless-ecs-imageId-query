@@ -1,0 +1,4 @@
+node_modules
+deploy/output.yaml
+dist/*
+.DS_Store
